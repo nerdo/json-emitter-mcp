@@ -52,6 +52,45 @@ describe("emitJson - schema validation errors", () => {
       expect(typeError?.params).toMatchObject({ type: "integer" });
     }
   });
+
+  test("TC3: maxLength violation → phase:validate with keyword:maxLength and params.limit", () => {
+    const yaml = `text: ${"x".repeat(50)}`;
+    const schema = {
+      type: "object",
+      properties: { text: { type: "string", maxLength: 10 } },
+    };
+
+    const result = emitJson(yaml, schema);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.phase === "validate") {
+      const maxLenError = result.errors.find((e) => e.keyword === "maxLength");
+      expect(maxLenError).toBeDefined();
+      expect(maxLenError?.instancePath).toBe("/text");
+      expect(maxLenError?.params).toMatchObject({ limit: 10 });
+    }
+  });
+
+  test("TC4: missing required property → phase:validate with keyword:required and params.missingProperty", () => {
+    const yaml = 'id: "abc"';
+    const schema = {
+      type: "object",
+      required: ["id", "name"],
+      properties: {
+        id: { type: "string" },
+        name: { type: "string" },
+      },
+    };
+
+    const result = emitJson(yaml, schema);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.phase === "validate") {
+      const requiredError = result.errors.find((e) => e.keyword === "required");
+      expect(requiredError).toBeDefined();
+      expect(requiredError?.params).toMatchObject({ missingProperty: "name" });
+    }
+  });
 });
 
 describe("emitJson - parse errors", () => {
