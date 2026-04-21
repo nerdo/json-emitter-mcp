@@ -71,6 +71,22 @@ describe("emitJson - schema validation errors", () => {
     }
   });
 
+  test("TC5: malformed JSON Schema → phase:schema_compile with message", () => {
+    const yaml = "foo: bar";
+    const schema = { type: "bogustype" };
+
+    const result = emitJson(yaml, schema);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.phase).toBe("schema_compile");
+      if (result.phase === "schema_compile") {
+        expect(result.message).toBeTypeOf("string");
+        expect(result.message.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   test("TC4: missing required property → phase:validate with keyword:required and params.missingProperty", () => {
     const yaml = 'id: "abc"';
     const schema = {

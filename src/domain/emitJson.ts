@@ -58,7 +58,16 @@ export function emitJson(yaml: string, jsonSchema?: object): EmitResult {
   }
 
   if (jsonSchema !== undefined) {
-    const validator = ajv.compile(jsonSchema);
+    let validator;
+    try {
+      validator = ajv.compile(jsonSchema);
+    } catch (error) {
+      return {
+        ok: false,
+        phase: "schema_compile",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
     if (!validator(data)) {
       return buildValidateResult(validator.errors ?? []);
     }
