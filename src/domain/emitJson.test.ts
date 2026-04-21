@@ -109,6 +109,106 @@ describe("emitJson - schema validation errors", () => {
   });
 });
 
+describe("emitJson - edge cases", () => {
+  test("TC10: valid JSON is valid YAML (superset) → round-trips", () => {
+    const result = emitJson('{"foo": 1, "bar": [true, null]}');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.parse(result.json)).toEqual({ foo: 1, bar: [true, null] });
+    }
+  });
+
+  test("TC11: block scalar preserves prose punctuation (the motivating case)", () => {
+    const yaml = `text: |
+  TI-13196 has been "explore" status for a full sprint — Monday worth a check-in
+  includes: colons, commas, "quotes", pipes | and asterisks *`;
+
+    const result = emitJson(yaml);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const parsed = JSON.parse(result.json) as { text: string };
+      expect(parsed.text).toContain('"explore"');
+      expect(parsed.text).toContain("— Monday");
+      expect(parsed.text).toContain('"quotes"');
+      expect(parsed.text).toContain("pipes |");
+      expect(parsed.text).toContain("asterisks *");
+    }
+  });
+
+  test("TC12: Norway problem neutralized by YAML 1.2 Core (no stays 'no')", () => {
+    const result = emitJson("country: no");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.parse(result.json)).toEqual({ country: "no" });
+    }
+  });
+
+  test("TC13: empty input → null", () => {
+    const result = emitJson("");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.json).toBe("null");
+    }
+  });
+
+  test("TC14: unicode in block scalar preserved", () => {
+    const yaml = "text: |\n  🚀 emoji ünïcödé 日本語";
+    const result = emitJson(yaml);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const parsed = JSON.parse(result.json) as { text: string };
+      expect(parsed.text).toContain("🚀");
+      expect(parsed.text).toContain("ünïcödé");
+      expect(parsed.text).toContain("日本語");
+    }
+  });
+
+  test("TC15: large payload (~100 KB) round-trips", () => {
+    const chunk = "x".repeat(1000);
+    const lines = Array.from({ length: 100 }, (_, i) => `  - "${chunk}-${i}"`);
+    const yaml = `items:\n${lines.join("\n")}`;
+
+    const result = emitJson(yaml);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const parsed = JSON.parse(result.json) as { items: string[] };
+      expect(parsed.items).toHaveLength(100);
+      expect(parsed.items[0]).toBe(`${chunk}-0`);
+      expect(parsed.items[99]).toBe(`${chunk}-99`);
+    }
+  });
+
+  test("TC16: YAML anchors & aliases expand into concrete JSON", () => {
+    const yaml = `defaults: &d
+  color: blue
+  size: md
+variant:
+  <<: *d
+  color: red`;
+    // merge keys are a YAML 1.1 feature; 1.2 requires plain expansion via the anchor,
+    // not the << merge syntax. Use a straight anchor/alias instead to stay in Core.
+    const yaml12 = `base: &b
+  a: 1
+  b: 2
+ref: *b`;
+
+    const result = emitJson(yaml12);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.parse(result.json)).toEqual({ base: { a: 1, b: 2 }, ref: { a: 1, b: 2 } });
+    }
+
+    // Confirm that the << merge syntax is NOT silently applied in 1.2 Core (merge off);
+    // either parses as a literal "<<" key or surfaces as a value under that key.
+    // We don't assert exact behavior here; we just make sure the parse doesn't blow up.
+    const r2 = emitJson(yaml);
+    expect(r2.ok).toBe(true);
+  });
+});
+
 describe("emitJson - parse errors", () => {
   test("TC1: malformed YAML returns phase:parse with line/column/offset/message/snippet", () => {
     // Unterminated double-quoted scalar — a clean structural parse failure
