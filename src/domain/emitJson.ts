@@ -1,4 +1,4 @@
-import Ajv2020, { type ErrorObject } from "ajv/dist/2020.js";
+import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { parse as parseYaml, YAMLParseError } from "yaml";
 
@@ -58,7 +58,7 @@ export function emitJson(yaml: string, jsonSchema?: object): EmitResult {
   }
 
   if (jsonSchema !== undefined) {
-    let validator;
+    let validator: ValidateFunction;
     try {
       validator = ajv.compile(jsonSchema);
     } catch (error) {
