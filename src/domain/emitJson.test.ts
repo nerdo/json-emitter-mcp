@@ -12,6 +12,48 @@ describe("emitJson - happy path (no schema)", () => {
   });
 });
 
+describe("emitJson - with schema (happy path)", () => {
+  test("TC20: valid payload passes schema validation", () => {
+    const yaml = 'name: "Alice"\nage: 30';
+    const schema = {
+      type: "object",
+      required: ["name", "age"],
+      properties: {
+        name: { type: "string" },
+        age: { type: "integer" },
+      },
+    };
+
+    const result = emitJson(yaml, schema);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.parse(result.json)).toEqual({ name: "Alice", age: 30 });
+    }
+  });
+});
+
+describe("emitJson - schema validation errors", () => {
+  test("TC2: type mismatch → phase:validate with instancePath and keyword:type", () => {
+    const yaml = 'count: "ten"';
+    const schema = {
+      type: "object",
+      properties: { count: { type: "integer" } },
+    };
+
+    const result = emitJson(yaml, schema);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.phase === "validate") {
+      expect(result.errors.length).toBeGreaterThan(0);
+      const typeError = result.errors.find((e) => e.keyword === "type");
+      expect(typeError).toBeDefined();
+      expect(typeError?.instancePath).toBe("/count");
+      expect(typeError?.params).toMatchObject({ type: "integer" });
+    }
+  });
+});
+
 describe("emitJson - parse errors", () => {
   test("TC1: malformed YAML returns phase:parse with line/column/offset/message/snippet", () => {
     // Unterminated double-quoted scalar — a clean structural parse failure

@@ -1,4 +1,9 @@
+import Ajv2020, { type ErrorObject } from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import { parse as parseYaml, YAMLParseError } from "yaml";
+
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+addFormats.default(ajv);
 
 export interface SchemaValidationIssue {
   readonly instancePath: string;
@@ -36,7 +41,7 @@ export type EmitResult =
  * Parse and validation failures are returned as EmitResult values, not thrown.
  * Only unexpected/programming errors escape this function.
  */
-export function emitJson(yaml: string, _jsonSchema?: object): EmitResult {
+export function emitJson(yaml: string, jsonSchema?: object): EmitResult {
   let data: unknown;
   try {
     data = parseYaml(yaml, {
@@ -51,7 +56,29 @@ export function emitJson(yaml: string, _jsonSchema?: object): EmitResult {
     }
     throw error;
   }
+
+  if (jsonSchema !== undefined) {
+    const validator = ajv.compile(jsonSchema);
+    if (!validator(data)) {
+      return buildValidateResult(validator.errors ?? []);
+    }
+  }
+
   return { ok: true, json: JSON.stringify(data) };
+}
+
+function buildValidateResult(errors: ReadonlyArray<ErrorObject>): EmitResult {
+  return {
+    ok: false,
+    phase: "validate",
+    errors: errors.map((e) => ({
+      instancePath: e.instancePath,
+      schemaPath: e.schemaPath,
+      keyword: e.keyword,
+      message: e.message ?? "",
+      params: e.params as Readonly<Record<string, unknown>>,
+    })),
+  };
 }
 
 function buildParseResult(error: YAMLParseError, source: string): EmitResult {
