@@ -355,6 +355,26 @@ Each phase is RED → GREEN → REFACTOR on a vertical slice. One test, one impl
 - **Streamable HTTP transport is still evolving** in the SDK; if v1 targets a version whose API is unstable, we fall back to stdio-only and file a follow-up.
 - **Input validation of `jsonSchema`** — we trust Ajv to reject malformed schemas at compile. If a genuinely broken schema crashes the process rather than throwing, we'll need a wrapper test-and-transform.
 
+## Execution Notes
+- **SDK version surprise**: `McpServer.registerTool` in SDK 1.29 only accepts Zod or Zod raw shape — not ArkType, despite docs showing ArkType support for v2. Switched to the lower-level `Server` API with a JSON Schema `inputSchema`, matching the prime-directive-mcp example. ArkType still validates arguments inside the handler as a belt-and-suspenders boundary.
+- **Per-request server factory for HTTP**: trying to reuse a single `Server` instance across HTTP connections triggers "Already connected to a transport" on the second request. Solved by taking a `serverFactory: () => Server` in `startHttpTransport` — each request gets a fresh server + fresh transport. That's effectively full stateless mode; acceptable given every `emit_json` call is a pure data transform.
+- **YAMLParseError line/column**: requires `prettyErrors: true` passed to `yaml.parse`. Default is true in `parse()` but explicit is safer.
+- **Ajv strict mode**: defaulted to `strict: false` to accept diverse user-supplied schemas; `allErrors: true` for complete feedback.
+- **Inspector CLI validation (bunx)**: `bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method tools/list` and `--method tools/call --tool-name emit_json --tool-arg yaml=…` both worked cleanly end-to-end.
+- **Module layout simplified**: spec initially called for separate wrapper error classes for YAMLParseError and SchemaCompileError; removed per YAGNI since those errors never leave the domain function — they're caught and transformed into `EmitResult` values inline.
+
+## Final Milestone
+- 37 automated tests across 6 files (all green): domain errors, emitJson happy/parse/validate/schema_compile/edge-cases, settings, server factory, transports (HTTP), main entry, stdio subprocess e2e, byte-12021 regression.
+- Full validate cycle (test → typecheck → test → build) clean.
+- 14 jj commits from spec draft through README. Linear history, conventional messages.
+- Inspector manual verification: tools/list + tools/call tested via Inspector CLI.
+
+## Lessons Learned
+- The MCP SDK's high-level `McpServer` wrappers are attractive but tie you to Zod for now; the lower-level `Server` API is only a few lines more and avoids the ecosystem pin.
+- Docs-vs-installed-version mismatch is a real risk in a moving SDK. Verified both installed type definitions and ran context7 queries; the type definitions on disk won.
+- Taking a factory (`() => Server`) instead of a singleton makes the HTTP transport trivially stateless without any special-case protocol handling.
+- YAML block scalars really do solve the emission problem: the Slack-blocks-style prose with quotes/colons/pipes round-trips cleanly, both through the pure domain function and end-to-end through the stdio subprocess.
+
 ## Appendix — The Motivating Failure (byte-12021)
 Raw error from the n8n `Convert to Slack Blocks` parser:
 ```
