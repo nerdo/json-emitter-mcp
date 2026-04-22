@@ -10,23 +10,24 @@ const NAME = "json-emitter";
 const VERSION = "0.2.0";
 
 const INSTRUCTIONS = `emit_json converts YAML to JSON, optionally validating against a JSON Schema.
-Emit your payload as YAML (prefer \`|\` block scalars for any multi-line or prose text) and pass
-the target JSON Schema alongside when one exists. On success the tool's text content IS the final
-JSON — emit it verbatim as your response; do NOT re-wrap, re-stringify, or re-indent it. On
-failure the response has \`isError: true\` and the text names the phase and location so you can
-fix the YAML (or the content) and call again. Compact by default; pass \`options: {pretty: true}\`
-for indented output.`;
+A successful response is a validity guarantee: the tool has already parsed the YAML, produced
+syntactically valid JSON, and — if a jsonSchema was supplied — confirmed the data satisfies it.
+If any of those had failed, you'd have gotten \`isError: true\` instead. Relay the bytes of
+\`content[0].text\` verbatim; do not re-parse, re-validate, re-stringify, pipe through jq, or
+otherwise reprocess a successful result. On failure the text names the phase and location so
+you can fix the YAML (or the content) and call again. Compact by default; pass
+\`options: {pretty: true}\` for indented output.`;
 
-const TOOL_DESCRIPTION = `Emit validated JSON from a YAML payload. Accepts \`yaml\` (YAML 1.2 string), optional \`jsonSchema\` (JSON Schema 2020-12 object), and optional \`options\` (e.g. \`{pretty: true}\` for indented output; compact by default).
+const TOOL_DESCRIPTION = `Emit JSON from a YAML payload, validated against an optional JSON Schema. Accepts \`yaml\` (YAML 1.2 string), optional \`jsonSchema\` (JSON Schema 2020-12 object), and optional \`options\` (e.g. \`{pretty: true}\` for indented output; compact by default).
+
+**A successful response is a validity guarantee.** If \`isError\` is absent, the tool has already: parsed the YAML successfully, produced syntactically valid JSON, and — if a \`jsonSchema\` was supplied — confirmed the data satisfies the schema. There is no path in which \`content[0].text\` comes back without \`isError\` and isn't valid JSON. Do not re-parse, re-validate, re-stringify, pipe through jq as a safety check, or otherwise reprocess a successful result. Relay the bytes verbatim as your response — the bytes the tool returns are the bytes you should hand off.
 
 Use this instead of hand-emitting JSON whenever the payload contains prose, quotes, colons, or any user-authored text — YAML block scalars (\`|\`, \`>\`) eliminate the escape-within-string context switch that causes silent JSON-string corruption at length.
 
 Shape the input:
 - Put long or multi-line text under a \`|\` block scalar. Inside \`|\`, quotes/colons/pipes/asterisks are just prose — no escaping needed.
 - Quote strings that look like booleans, numbers, dates, or null (yes, on, 12, 2024-01-01). YAML 1.2 Core Schema is used; ambiguous plain scalars become strings only when quoted.
-- Pass the target schema via \`jsonSchema\` whenever one exists — omitting it means the tool cannot detect shape/constraint violations.
-
-On success, the tool's text content IS the JSON. Relay it verbatim as your response — do not unwrap, re-stringify, re-indent, or reformat it. The bytes the tool returns are the bytes you should hand off.
+- Pass the target schema via \`jsonSchema\` whenever one exists — omitting it means the tool cannot detect shape/constraint violations (only YAML parse errors are caught).
 
 On failure, \`isError\` is true and the text content names the phase and location: "parse" (with line/column/snippet), "schema_compile" (with the ajv message for a malformed JSON Schema), or "validate" (with per-issue instancePath/keyword/message). Read it, fix the YAML or the content, and call again.`;
 
