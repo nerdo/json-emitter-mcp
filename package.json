@@ -1,6 +1,6 @@
 {
   "name": "@nerdo/json-emitter-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP server that converts YAML to validated JSON — a safer emission surface for LLMs generating structured JSON payloads.",
   "type": "module",
   "main": "dist/main.js",

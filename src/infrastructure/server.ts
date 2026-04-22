@@ -10,7 +10,7 @@ import { EmitJsonFailure } from "../domain/errors.ts";
 import { emitJson, type EmitResult } from "../domain/emitJson.ts";
 
 const NAME = "json-emitter";
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 
 const INSTRUCTIONS = `emit_json converts YAML to validated JSON. Use it for authoring multi-line JSON from scratch — reach for it instead of hand-writing JSON into \`Write\` or a heredoc.
 1. Emit your payload as YAML (prefer \`|\` block scalars for prose).
