@@ -24,9 +24,8 @@ describe("startHttpTransport", () => {
 
     expect(result.isError).toBeFalsy();
     const content = result.content as Array<{ type: string; text: string }>;
-    const body = JSON.parse(content[0]?.text ?? "{}");
-    expect(body).toMatchObject({ ok: true });
-    expect(JSON.parse(body.json)).toEqual({ hello: "world" });
+    // Content text IS the JSON — no envelope to unwrap
+    expect(JSON.parse(content[0]?.text ?? "")).toEqual({ hello: "world" });
 
     await client.close();
     await transport.close();

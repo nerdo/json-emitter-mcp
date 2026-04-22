@@ -14,6 +14,11 @@ async function connectClient() {
   return { server, client };
 }
 
+function firstTextBlock(content: unknown): string {
+  const arr = content as Array<{ type: string; text: string }>;
+  return arr[0]?.text ?? "";
+}
+
 describe("createJsonEmitterServer", () => {
   test("exposes emit_json tool with a description", async () => {
     const { client } = await connectClient();
@@ -26,7 +31,7 @@ describe("createJsonEmitterServer", () => {
     expect((emitJsonTool?.description ?? "").length).toBeGreaterThan(50);
   });
 
-  test("emit_json returns successful result for valid YAML without schema", async () => {
+  test("success: content text is the bare JSON (no envelope), compact by default", async () => {
     const { client } = await connectClient();
 
     const result = await client.callTool({
@@ -35,14 +40,42 @@ describe("createJsonEmitterServer", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    expect(Array.isArray(result.content)).toBe(true);
-    const content = result.content as Array<{ type: string; text: string }>;
-    const body = JSON.parse(content[0]?.text ?? "{}");
-    expect(body).toMatchObject({ ok: true });
-    expect(JSON.parse(body.json)).toEqual({ foo: "bar", num: 1 });
+    const text = firstTextBlock(result.content);
+    // Bare JSON — no wrapping {ok:..., json:...} envelope
+    expect(text).toBe('{"foo":"bar","num":1}');
   });
 
-  test("emit_json sets isError: true and returns validate-shape on schema failure", async () => {
+  test("success with options.pretty=true: content text is indented JSON", async () => {
+    const { client } = await connectClient();
+
+    const result = await client.callTool({
+      name: "emit_json",
+      arguments: { yaml: "foo: bar\nnum: 1", options: { pretty: true } },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = firstTextBlock(result.content);
+    expect(text).toBe('{\n  "foo": "bar",\n  "num": 1\n}');
+  });
+
+  test("parse failure: isError true, text describes phase + line/column + snippet", async () => {
+    const { client } = await connectClient();
+
+    const result = await client.callTool({
+      name: "emit_json",
+      arguments: { yaml: 'foo: "unterminated' },
+    });
+
+    expect(result.isError).toBe(true);
+    const text = firstTextBlock(result.content);
+    expect(text).toContain("YAML parse error");
+    expect(text).toContain("line 1");
+    expect(text).toMatch(/column \d+/);
+    expect(text).toContain("unterminated");
+    expect(text).toContain("^");
+  });
+
+  test("validate failure: isError true, text lists each issue with path and keyword", async () => {
     const { client } = await connectClient();
 
     const result = await client.callTool({
@@ -57,28 +90,26 @@ describe("createJsonEmitterServer", () => {
     });
 
     expect(result.isError).toBe(true);
-    const content = result.content as Array<{ type: string; text: string }>;
-    const body = JSON.parse(content[0]?.text ?? "{}");
-    expect(body).toMatchObject({ ok: false, phase: "validate" });
-    expect(body.errors.length).toBeGreaterThan(0);
-    expect(body.errors[0].instancePath).toBe("/count");
+    const text = firstTextBlock(result.content);
+    expect(text).toContain("JSON Schema validation failed");
+    expect(text).toContain("/count");
+    expect(text).toContain("type");
   });
 
-  test("emit_json sets isError: true and returns parse-shape on malformed YAML", async () => {
+  test("schema_compile failure: isError true, text names the malformed schema", async () => {
     const { client } = await connectClient();
 
     const result = await client.callTool({
       name: "emit_json",
-      arguments: { yaml: 'foo: "unterminated' },
+      arguments: {
+        yaml: "foo: bar",
+        jsonSchema: { type: "bogustype" },
+      },
     });
 
     expect(result.isError).toBe(true);
-    const content = result.content as Array<{ type: string; text: string }>;
-    const body = JSON.parse(content[0]?.text ?? "{}");
-    expect(body).toMatchObject({ ok: false, phase: "parse" });
-    expect(typeof body.line).toBe("number");
-    expect(typeof body.column).toBe("number");
-    expect(typeof body.snippet).toBe("string");
+    const text = firstTextBlock(result.content);
+    expect(text).toContain("JSON Schema is invalid");
   });
 
   test("unknown tool call returns isError without crashing", async () => {
@@ -86,7 +117,6 @@ describe("createJsonEmitterServer", () => {
 
     const result = await client.callTool({
       name: "not_a_tool",
-      // arguments optional, but some clients require an object
       arguments: {},
     });
 

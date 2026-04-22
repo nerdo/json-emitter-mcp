@@ -2,8 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+function textOf(content: unknown): string {
+  const arr = content as Array<{ type: string; text: string }>;
+  return arr[0]?.text ?? "";
+}
+
 describe("stdio transport end-to-end (real subprocess)", () => {
-  test("spawns the server, lists tools, calls emit_json through stdio", async () => {
+  test("spawns the server, lists tools, calls emit_json through stdio; content text IS the JSON", async () => {
     const transport = new StdioClientTransport({
       command: "bun",
       args: ["src/main.ts"],
@@ -26,10 +31,9 @@ describe("stdio transport end-to-end (real subprocess)", () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const content = result.content as Array<{ type: string; text: string }>;
-      const body = JSON.parse(content[0]?.text ?? "{}");
-      expect(body).toMatchObject({ ok: true });
-      const parsed = JSON.parse(body.json) as { text: string };
+      const text = textOf(result.content);
+      // Text IS the JSON — parse it directly, no envelope to unwrap
+      const parsed = JSON.parse(text) as { text: string };
       expect(parsed.text).toContain('"quotes"');
       expect(parsed.text).toContain("colons | pipes *");
     } finally {
@@ -38,7 +42,7 @@ describe("stdio transport end-to-end (real subprocess)", () => {
     }
   }, 15000);
 
-  test("byte-12021 regression: long prose with quotes under block scalar round-trips", async () => {
+  test("byte-12021 regression: long prose with quotes under block scalar round-trips as bare JSON", async () => {
     const transport = new StdioClientTransport({
       command: "bun",
       args: ["src/main.ts"],
@@ -64,16 +68,69 @@ describe("stdio transport end-to-end (real subprocess)", () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const content = result.content as Array<{ type: string; text: string }>;
-      const body = JSON.parse(content[0]?.text ?? "{}");
-      const parsed = JSON.parse(body.json) as { text: string };
+      const parsed = JSON.parse(textOf(result.content)) as { text: string };
 
-      // Confirm none of the prose's sharp characters corrupted the JSON
       expect(parsed.text).toContain('"explore"');
       expect(parsed.text).toContain('"fix: thing"');
       expect(parsed.text).toContain("10:30am");
       expect(parsed.text).toContain("|a|b|");
       expect(parsed.text).toContain("*emphasized*");
+    } finally {
+      await client.close();
+      await transport.close();
+    }
+  }, 15000);
+
+  test("options.pretty=true returns indented JSON (still bare)", async () => {
+    const transport = new StdioClientTransport({
+      command: "bun",
+      args: ["src/main.ts"],
+      env: { ...process.env, JSON_EMITTER_TRANSPORT: "stdio" },
+      cwd: process.cwd(),
+    });
+    const client = new Client({ name: "stdio-pretty", version: "0.0.0" });
+
+    try {
+      await client.connect(transport);
+
+      const result = await client.callTool({
+        name: "emit_json",
+        arguments: {
+          yaml: "foo: bar\nnum: 1",
+          options: { pretty: true },
+        },
+      });
+
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result.content);
+      expect(text).toBe('{\n  "foo": "bar",\n  "num": 1\n}');
+    } finally {
+      await client.close();
+      await transport.close();
+    }
+  }, 15000);
+
+  test("parse failure: isError true, text names the phase and location", async () => {
+    const transport = new StdioClientTransport({
+      command: "bun",
+      args: ["src/main.ts"],
+      env: { ...process.env, JSON_EMITTER_TRANSPORT: "stdio" },
+      cwd: process.cwd(),
+    });
+    const client = new Client({ name: "stdio-parse-err", version: "0.0.0" });
+
+    try {
+      await client.connect(transport);
+
+      const result = await client.callTool({
+        name: "emit_json",
+        arguments: { yaml: 'foo: "unterminated' },
+      });
+
+      expect(result.isError).toBe(true);
+      const text = textOf(result.content);
+      expect(text).toContain("YAML parse error");
+      expect(text).toContain("line 1");
     } finally {
       await client.close();
       await transport.close();
