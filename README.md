@@ -1,6 +1,6 @@
 # json-emitter
 
-An MCP server with one tool: `emit_json(yaml, jsonSchema?, options?)`. It converts a YAML 1.2 payload to JSON, optionally validating against a JSON Schema. **On success, the tool's text response IS the JSON** — callers relay it verbatim. On failure, `isError` is set and the text names the phase and location.
+An MCP server with one tool: `emit_json(yaml, jsonSchema?, options?)`. It converts a YAML 1.2 payload to JSON, optionally validating against a JSON Schema. **On success, the tool's text response IS the JSON** — callers relay it verbatim. **On failure the tool raises an error**, whose message names the phase and location so the caller can fix the input and retry. There is no intermediate "success with an error flag" state — a returned response is always a valid JSON payload.
 
 ## Why
 
@@ -58,7 +58,7 @@ emit_json({
 
 ### Success
 
-`isError` is absent/false. `content[0].text` is the JSON — literally, with no envelope:
+The tool returns with `content[0].text` set to the JSON — literally, with no envelope:
 
 ```
 {"text":"TI-13196 has been \"explore\" status...","count":3}
@@ -68,7 +68,7 @@ Default output is compact. Pass `options: {pretty: true}` for 2-space indentatio
 
 ### Failure
 
-`isError` is `true`. `content[0].text` is a formatted message naming the phase and location.
+The tool raises an MCP error. MCP clients surface it as an exception from `callTool(...)`; LLMs see an error in the tool result. The error message names the phase and location.
 
 Parse failure (malformed YAML):
 

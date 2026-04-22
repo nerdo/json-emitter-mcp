@@ -110,7 +110,7 @@ describe("stdio transport end-to-end (real subprocess)", () => {
     }
   }, 15000);
 
-  test("parse failure: isError true, text names the phase and location", async () => {
+  test("parse failure: callTool rejects with a message naming phase and location", async () => {
     const transport = new StdioClientTransport({
       command: "bun",
       args: ["src/main.ts"],
@@ -122,15 +122,12 @@ describe("stdio transport end-to-end (real subprocess)", () => {
     try {
       await client.connect(transport);
 
-      const result = await client.callTool({
-        name: "emit_json",
-        arguments: { yaml: 'foo: "unterminated' },
-      });
-
-      expect(result.isError).toBe(true);
-      const text = textOf(result.content);
-      expect(text).toContain("YAML parse error");
-      expect(text).toContain("line 1");
+      await expect(
+        client.callTool({
+          name: "emit_json",
+          arguments: { yaml: 'foo: "unterminated' },
+        }),
+      ).rejects.toThrow(/YAML parse error.*line 1/s);
     } finally {
       await client.close();
       await transport.close();

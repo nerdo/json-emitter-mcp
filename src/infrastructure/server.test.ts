@@ -20,15 +20,17 @@ function firstTextBlock(content: unknown): string {
 }
 
 describe("createJsonEmitterServer", () => {
-  test("exposes emit_json tool with a description", async () => {
+  test("exposes emit_json tool with a description and no isError language", async () => {
     const { client } = await connectClient();
 
     const { tools } = await client.listTools();
 
     const emitJsonTool = tools.find((t) => t.name === "emit_json");
     expect(emitJsonTool).toBeDefined();
-    expect(emitJsonTool?.description).toBeTypeOf("string");
-    expect((emitJsonTool?.description ?? "").length).toBeGreaterThan(50);
+    const desc = emitJsonTool?.description ?? "";
+    expect(desc.length).toBeGreaterThan(50);
+    // The tool no longer signals failure via isError — it raises errors.
+    expect(desc).not.toContain("isError");
   });
 
   test("success: content text is the bare JSON (no envelope), compact by default", async () => {
@@ -39,9 +41,9 @@ describe("createJsonEmitterServer", () => {
       arguments: { yaml: "foo: bar\nnum: 1" },
     });
 
+    // No isError to check; result has no isError field on success
     expect(result.isError).toBeFalsy();
     const text = firstTextBlock(result.content);
-    // Bare JSON — no wrapping {ok:..., json:...} envelope
     expect(text).toBe('{"foo":"bar","num":1}');
   });
 
@@ -58,68 +60,53 @@ describe("createJsonEmitterServer", () => {
     expect(text).toBe('{\n  "foo": "bar",\n  "num": 1\n}');
   });
 
-  test("parse failure: isError true, text describes phase + line/column + snippet", async () => {
+  test("parse failure: callTool rejects with a message naming the phase and location", async () => {
     const { client } = await connectClient();
 
-    const result = await client.callTool({
-      name: "emit_json",
-      arguments: { yaml: 'foo: "unterminated' },
-    });
-
-    expect(result.isError).toBe(true);
-    const text = firstTextBlock(result.content);
-    expect(text).toContain("YAML parse error");
-    expect(text).toContain("line 1");
-    expect(text).toMatch(/column \d+/);
-    expect(text).toContain("unterminated");
-    expect(text).toContain("^");
+    await expect(
+      client.callTool({
+        name: "emit_json",
+        arguments: { yaml: 'foo: "unterminated' },
+      }),
+    ).rejects.toThrow(/YAML parse error.*line 1.*column/s);
   });
 
-  test("validate failure: isError true, text lists each issue with path and keyword", async () => {
+  test("validate failure: callTool rejects with per-issue path and keyword in the message", async () => {
     const { client } = await connectClient();
 
-    const result = await client.callTool({
-      name: "emit_json",
-      arguments: {
-        yaml: 'count: "ten"',
-        jsonSchema: {
-          type: "object",
-          properties: { count: { type: "integer" } },
+    await expect(
+      client.callTool({
+        name: "emit_json",
+        arguments: {
+          yaml: 'count: "ten"',
+          jsonSchema: {
+            type: "object",
+            properties: { count: { type: "integer" } },
+          },
         },
-      },
-    });
-
-    expect(result.isError).toBe(true);
-    const text = firstTextBlock(result.content);
-    expect(text).toContain("JSON Schema validation failed");
-    expect(text).toContain("/count");
-    expect(text).toContain("type");
+      }),
+    ).rejects.toThrow(/JSON Schema validation failed.*\/count.*type/s);
   });
 
-  test("schema_compile failure: isError true, text names the malformed schema", async () => {
+  test("schema_compile failure: callTool rejects with the ajv compile message", async () => {
     const { client } = await connectClient();
 
-    const result = await client.callTool({
-      name: "emit_json",
-      arguments: {
-        yaml: "foo: bar",
-        jsonSchema: { type: "bogustype" },
-      },
-    });
-
-    expect(result.isError).toBe(true);
-    const text = firstTextBlock(result.content);
-    expect(text).toContain("JSON Schema is invalid");
+    await expect(
+      client.callTool({
+        name: "emit_json",
+        arguments: {
+          yaml: "foo: bar",
+          jsonSchema: { type: "bogustype" },
+        },
+      }),
+    ).rejects.toThrow(/JSON Schema is invalid/);
   });
 
-  test("unknown tool call returns isError without crashing", async () => {
+  test("unknown tool call rejects", async () => {
     const { client } = await connectClient();
 
-    const result = await client.callTool({
-      name: "not_a_tool",
-      arguments: {},
-    });
-
-    expect(result.isError).toBe(true);
+    await expect(
+      client.callTool({ name: "not_a_tool", arguments: {} }),
+    ).rejects.toThrow();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { JsonEmitterError } from "./errors.ts";
+import { EmitJsonFailure, JsonEmitterError } from "./errors.ts";
 
 class TestError extends JsonEmitterError {
   constructor(
@@ -67,5 +67,36 @@ describe("JsonEmitterError", () => {
     const err = new TestError("x");
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(JsonEmitterError);
+  });
+});
+
+describe("EmitJsonFailure", () => {
+  test("is a JsonEmitterError with phase + message", () => {
+    const err = new EmitJsonFailure({
+      phase: "parse",
+      message: "YAML parse error at line 1, column 19:\n...snippet...",
+    });
+    expect(err).toBeInstanceOf(JsonEmitterError);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.phase).toBe("parse");
+    expect(err.message).toContain("YAML parse error");
+  });
+
+  test("phase is readonly and one of the three allowed values", () => {
+    const phases = ["parse", "schema_compile", "validate"] as const;
+    for (const p of phases) {
+      const err = new EmitJsonFailure({ phase: p, message: "x" });
+      expect(err.phase).toBe(p);
+    }
+  });
+
+  test("name is 'EmitJsonFailure'", () => {
+    const err = new EmitJsonFailure({ phase: "validate", message: "x" });
+    expect(err.name).toBe("EmitJsonFailure");
+  });
+
+  test("getDetails includes the phase", () => {
+    const err = new EmitJsonFailure({ phase: "schema_compile", message: "x" });
+    expect(err.getDetails()).toEqual({ phase: "schema_compile" });
   });
 });

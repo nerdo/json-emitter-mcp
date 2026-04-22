@@ -56,3 +56,21 @@ export abstract class JsonEmitterError extends Error {
     return details;
   }
 }
+
+export type EmitJsonFailurePhase = "parse" | "schema_compile" | "validate";
+
+/**
+ * Thrown from the emit_json MCP handler when the tool cannot produce valid JSON.
+ * Crossing the MCP boundary, the SDK serializes this into a JSON-RPC error; the
+ * client's callTool() rejects with the message preserved. The `phase` field is
+ * present for internal (non-MCP) callers that want to branch on failure type.
+ */
+export class EmitJsonFailure extends JsonEmitterError {
+  public readonly phase: EmitJsonFailurePhase;
+
+  constructor(params: { phase: EmitJsonFailurePhase; message: string; cause?: unknown }) {
+    super({ cause: params.cause });
+    this.phase = params.phase;
+    this.setMessage(params.message);
+  }
+}
