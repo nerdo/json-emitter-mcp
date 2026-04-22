@@ -23,6 +23,7 @@ export type EmitResult =
       readonly offset: number;
       readonly message: string;
       readonly snippet: string;
+      readonly code?: string;
     }
   | {
       readonly ok: false;
@@ -118,6 +119,7 @@ function buildParseResult(error: YAMLParseError, source: string): EmitResult {
     offset,
     message: headline,
     snippet,
+    code: error.code,
   };
 }
 

@@ -239,6 +239,55 @@ ref: *b`;
   });
 });
 
+describe("emitJson - parser characterization (silent-semantics probes)", () => {
+  // Pin behavior of the underlying `yaml` parser for edge cases that are
+  // traditional sources of silent YAML→JSON coercion. If the parser's behavior
+  // changes under a dependency upgrade, these tests surface it.
+
+  test("duplicate mapping keys are rejected at parse (not silently kept)", () => {
+    const result = emitJson("a: 1\na: 2\n");
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.phase === "parse") {
+      expect(result.code).toBe("DUPLICATE_KEY");
+    }
+  });
+
+  test("multi-document streams are rejected at parse (not silently truncated)", () => {
+    const result = emitJson("---\nfoo: 1\n---\nbar: 2\n");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.phase).toBe("parse");
+    }
+  });
+
+  test("boolean plain-scalar keys are stringified to \"true\"/\"false\" in output JSON", () => {
+    const result = emitJson("true: yes-value\nfalse: no-value\n");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.parse(result.json)).toEqual({ true: "yes-value", false: "no-value" });
+    }
+  });
+
+  test("integer plain-scalar keys are stringified to their decimal form", () => {
+    const result = emitJson("42: fortytwo\n");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.parse(result.json)).toEqual({ "42": "fortytwo" });
+    }
+  });
+
+  test("flow-sequence keys are stringified (not rejected) — documents lossy coercion", () => {
+    const result = emitJson("? [1, 2]\n: listkey\n");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const parsed = JSON.parse(result.json) as Record<string, string>;
+      const keys = Object.keys(parsed);
+      expect(keys).toHaveLength(1);
+      expect(parsed[keys[0] as string]).toBe("listkey");
+    }
+  });
+});
+
 describe("emitJson - parse errors", () => {
   test("TC1: malformed YAML returns phase:parse with line/column/offset/message/snippet", () => {
     // Unterminated double-quoted scalar — a clean structural parse failure

@@ -108,6 +108,29 @@ JSON Schema validation failed with 1 issue(s):
   /text: must NOT have more than 3000 characters  (keyword: maxLength, params: {"limit":3000})
 ```
 
+For common parse errors (duplicate keys, multi-document streams, tab indentation, inconsistent indentation), the message appends a one-line `Hint:` pointing at the fix:
+
+```
+YAML parse error at line 2, column 1 (offset 5):
+Map keys must be unique at line 2, column 1:
+
+   1 | a: 1
+   2 | a: 2
+   2 | ^
+
+Hint: Remove the duplicate key — YAML 1.2 mappings must have unique keys. If you need multiple values, use a sequence.
+```
+
+## Resources
+
+The server also exposes one MCP resource for clients that list them:
+
+| URI | MIME | Purpose |
+|-----|------|---------|
+| `json-emitter://docs/yaml-authoring-guide` | `text/markdown` | Quoting rules, block-scalar usage, what the tool rejects vs. silently converts, and why a `jsonSchema` catches indentation-driven structural bugs. |
+
+Read it via `resources/read` in any MCP client, or via the Inspector.
+
 ## Example
 
 Input YAML:
@@ -144,7 +167,10 @@ That's the response body — already valid JSON, already compact, the contract's
 
 - Put long or multi-line text under a `|` block scalar. Inside `|`, quotes/colons/pipes/asterisks are just prose.
 - Quote strings that look like booleans, numbers, dates, or null (`yes`, `on`, `12`, `2024-01-01`). YAML 1.2 Core Schema is used — the Norway problem is off (`no` stays `"no"`, not `false`), but ambiguous-looking plain scalars are still safer quoted.
-- Pass the target `jsonSchema` whenever one exists. Without it, only parse errors can be caught.
+- Quote all-digit identifiers (git SHAs, phone numbers, IDs past 2⁵³) and scientific-notation-shaped strings (`"1e2"`) to avoid precision loss and silent numeric coercion.
+- Pass the target `jsonSchema` whenever one exists. Without it, only parse errors can be caught — the schema is also the one mechanical defense against indentation-driven structural bugs.
+
+For a longer reference — including what the tool rejects outright and the inherently non-catchable residual — see the `json-emitter://docs/yaml-authoring-guide` MCP resource.
 
 ## Libraries
 
