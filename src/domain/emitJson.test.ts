@@ -10,6 +10,36 @@ describe("emitJson - happy path (no schema)", () => {
       expect(JSON.parse(result.json)).toEqual({ foo: "bar", num: 1 });
     }
   });
+
+  test("default output is compact (no whitespace between tokens)", () => {
+    const result = emitJson("foo: bar\nnum: 1");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.json).toBe('{"foo":"bar","num":1}');
+    }
+  });
+
+  test("options.pretty=true indents with 2 spaces", () => {
+    const result = emitJson("foo: bar\nnum: 1", undefined, { pretty: true });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.json).toBe('{\n  "foo": "bar",\n  "num": 1\n}');
+    }
+  });
+
+  test("options.pretty=false is explicit compact (same as default)", () => {
+    const result = emitJson("foo: bar\nnum: 1", undefined, { pretty: false });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.json).toBe('{"foo":"bar","num":1}');
+    }
+  });
+
+  test("empty options object is equivalent to no options", () => {
+    const a = emitJson("foo: bar", undefined, {});
+    const b = emitJson("foo: bar");
+    expect(a.ok && b.ok && a.json === b.json).toBe(true);
+  });
 });
 
 describe("emitJson - with schema (happy path)", () => {

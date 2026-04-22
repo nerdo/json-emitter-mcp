@@ -35,13 +35,24 @@ export type EmitResult =
       readonly errors: ReadonlyArray<SchemaValidationIssue>;
     };
 
+export interface EmitJsonOptions {
+  /** If true, pretty-print the JSON with 2-space indentation. Default false (compact). */
+  readonly pretty?: boolean;
+}
+
 /**
  * Convert a YAML 1.2 document to JSON, optionally validating against a JSON Schema.
  *
  * Parse and validation failures are returned as EmitResult values, not thrown.
  * Only unexpected/programming errors escape this function.
+ *
+ * Default output is compact (no whitespace). Pass `{pretty: true}` for indented output.
  */
-export function emitJson(yaml: string, jsonSchema?: object): EmitResult {
+export function emitJson(
+  yaml: string,
+  jsonSchema?: object,
+  options?: EmitJsonOptions,
+): EmitResult {
   let data: unknown;
   try {
     data = parseYaml(yaml, {
@@ -73,7 +84,8 @@ export function emitJson(yaml: string, jsonSchema?: object): EmitResult {
     }
   }
 
-  return { ok: true, json: JSON.stringify(data) };
+  const indent = options?.pretty === true ? 2 : undefined;
+  return { ok: true, json: JSON.stringify(data, null, indent) };
 }
 
 function buildValidateResult(errors: ReadonlyArray<ErrorObject>): EmitResult {
