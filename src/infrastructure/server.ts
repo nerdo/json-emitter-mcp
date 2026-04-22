@@ -10,13 +10,15 @@ import { emitJson, type EmitResult } from "../domain/emitJson.ts";
 const NAME = "json-emitter";
 const VERSION = "0.3.0";
 
-const INSTRUCTIONS = `emit_json converts YAML to JSON, optionally validated against a JSON Schema. A successful return means the YAML parsed, the JSON is syntactically valid, and (if a jsonSchema was supplied) the data satisfies it. Failures raise an error whose message names the phase (parse / schema_compile / validate) and location. Compact by default; pass \`options: {pretty: true}\` for indented output.`;
+const INSTRUCTIONS = `emit_json converts YAML to validated JSON. Use it for authoring multi-line JSON from scratch — reach for it instead of hand-writing JSON into \`Write\` or a heredoc.
+1. Emit your payload as YAML (prefer \`|\` block scalars for prose).
+2. Pass a \`jsonSchema\` when the target shape exists — omitting it means only parse errors are detected.
+3. Feed the returned \`json\` string directly to the next tool; do not retype or re-embed it.
+On failure the structured \`phase\` (parse / schema_compile / validate) names the stage that failed.`;
 
-const TOOL_DESCRIPTION = `Emit JSON from a YAML payload, optionally validated against a JSON Schema. Accepts \`yaml\` (YAML 1.2 string), optional \`jsonSchema\` (JSON Schema 2020-12 object), and optional \`options\` (e.g. \`{pretty: true}\` for indented output; compact by default).
+const TOOL_DESCRIPTION = `Use when authoring multi-line JSON from scratch — OpenAPI specs, fixtures, config files, API request bodies, anything strict-schema. Reach for this instead of \`Write\` with a \`.json\` path or a heredoc of JSON: authoring in YAML avoids the quote/escape/trailing-comma traps, and the returned bytes are validated-by-construction before they touch disk. Pass the returned \`json\` string directly to the next tool (\`Write\`, another MCP, a shell pipe) — do not retype or re-embed it.
 
-The return value is the JSON as the tool's text content. A successful return means the YAML parsed, the result is syntactically valid JSON, and — if a \`jsonSchema\` was supplied — the data satisfies that schema. Anything short of that raises an error; nothing is returned.
-
-Useful anywhere hand-emitting JSON is error-prone — payloads containing prose, quotes, colons, or other user-authored text. YAML block scalars (\`|\`, \`>\`) let you write prose without JSON's escape-within-string context switch.
+Accepts \`yaml\` (YAML 1.2 string), optional \`jsonSchema\` (JSON Schema 2020-12 object), and optional \`options\` (e.g. \`{pretty: true}\` for indented output; compact by default). A successful return means the YAML parsed, the result is syntactically valid JSON, and — if a \`jsonSchema\` was supplied — the data satisfies that schema. Anything short of that raises an error; nothing is returned.
 
 Input shape tips:
 - Long or multi-line text belongs under a \`|\` block scalar. Inside \`|\`, quotes/colons/pipes/asterisks are just prose — no escaping needed.
@@ -26,7 +28,7 @@ Input shape tips:
 Failure modes:
 - "parse" — malformed YAML; error message includes line/column/snippet.
 - "schema_compile" — the supplied \`jsonSchema\` is not a valid JSON Schema; error message is the ajv compile error.
-- "validate" — YAML parsed but the data doesn't match the schema; error message lists each issue's instancePath, keyword, and params.`;
+- "validate" — YAML parsed but the data doesn't match the schema; error message lists each issue's instancePath, keyword, and params. Fix the YAML or the schema and call again.`;
 
 const EMIT_JSON_INPUT_SCHEMA = {
   type: "object" as const,
