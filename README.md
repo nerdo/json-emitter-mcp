@@ -35,6 +35,21 @@ bun src/main.ts --transport=http --port=3000
 
 ## Using it from a Claude Code MCP config
 
+From npm (once published):
+
+```json
+{
+  "mcpServers": {
+    "json-emitter": {
+      "command": "npx",
+      "args": ["-y", "json-emitter"]
+    }
+  }
+}
+```
+
+From a local checkout:
+
 ```json
 {
   "mcpServers": {

@@ -3,7 +3,6 @@
   "version": "0.3.0",
   "description": "MCP server that converts YAML to validated JSON — a safer emission surface for LLMs generating structured JSON payloads.",
   "type": "module",
-  "private": true,
   "main": "dist/main.js",
   "bin": {
     "json-emitter": "dist/main.js"
@@ -15,6 +14,9 @@
     }
   },
   "files": ["dist"],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "bun --hot src/main.ts",
     "build": "bun build src/main.ts --outdir dist --target node",
@@ -25,7 +27,8 @@
     "lint": "biome lint .",
     "format": "biome format . --write",
     "typecheck": "tsc --noEmit",
-    "validate": "bun run test && bun run typecheck && bun run test && bun run build"
+    "validate": "bun run test && bun run typecheck && bun run test && bun run build",
+    "prepublishOnly": "bun run validate"
   },
   "keywords": ["mcp", "yaml", "json", "json-schema", "llm", "ajv"],
   "author": "",

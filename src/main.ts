@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { createJsonEmitterServer } from "./infrastructure/server.ts";
 import { loadSettings } from "./infrastructure/settings.ts";
 import {
