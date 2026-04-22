@@ -1,12 +1,12 @@
 # json-emitter
 
-An MCP server with one tool: `emit_json(yaml, jsonSchema?, options?)`. It converts a YAML 1.2 payload to JSON, optionally validating against a JSON Schema. **On success, the tool's text response IS the JSON** — callers relay it verbatim. **On failure the tool raises an error**, whose message names the phase and location so the caller can fix the input and retry. There is no intermediate "success with an error flag" state — a returned response is always a valid JSON payload.
+An MCP server with one tool: `emit_json(yaml, jsonSchema?, options?)`. It converts a YAML 1.2 payload to JSON, optionally validating against a JSON Schema. The response body is the JSON. Failures raise an MCP error with a message naming the phase and location. A returned response is always a valid JSON payload.
 
 ## Why
 
 LLMs emitting JSON directly frequently drop escape-within-prose-strings at length — a stray `"` inside a long `"text"` value silently breaks the whole document (e.g. `SyntaxError at position 12021`). YAML block scalars (`|`, `>`) eliminate the context switch: inside `|`, quotes/colons/pipes/asterisks are just prose.
 
-Returning the JSON directly (rather than wrapping it in a `{ok, json}` envelope) avoids a second failure mode: LLMs unwrapping and re-stringifying the inner JSON themselves. Every byte-touching step between tool output and handoff should be deterministic.
+The tool returns the JSON as the response body rather than wrapping it in an envelope, and raises errors rather than returning them as data. Callers work with the JSON directly; whatever processing they do with it afterwards is their call.
 
 ## Install & run
 
@@ -123,7 +123,7 @@ Tool response content (success):
 {"text":"TI-13196 has been \"explore\" status for a full sprint — Monday worth a check-in.\nCommits like \"fix: thing\" and times like 10:30am pass through intact.\n","count":3}
 ```
 
-That text IS the answer. Callers copy those bytes through to the destination — no JSON.parse + JSON.stringify round-trip, no manual unwrapping.
+That's the response body — already valid JSON, already compact, the contract's output.
 
 ## Authoring YAML for this tool
 
