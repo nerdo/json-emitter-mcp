@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bunx @modelcontextprotocol/inspector:*)",
+      "mcp__json-emitter-dev"
+    ]
+  }
+}

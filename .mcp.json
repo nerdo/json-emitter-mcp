@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "json-emitter-dev": {
+      "command": "bun",
+      "args": ["src/main.ts"]
+    }
+  }
+}

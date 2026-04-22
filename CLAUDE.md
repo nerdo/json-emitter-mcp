@@ -19,6 +19,27 @@ See [`specs/in-progress/executing-emit-json-mcp.md`](specs/in-progress/executing
 - Version control: **jj** colocated with git
 - Dev loop: `bun run validate` (test → typecheck → test → build)
 
+## Testing this MCP server
+
+Two layers, both part of regular testing:
+
+1. **Automated suite** (`bun run validate`) — unit + in-memory MCP client tests covering handler logic.
+2. **Inspector smoke check** — verifies the stdio wire path and real MCP framing before shipping or when changing handler registration / capabilities / transport:
+
+   ```bash
+   bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method tools/list
+   bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method resources/list
+   bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method resources/read --uri json-emitter://docs/yaml-authoring-guide
+   bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method tools/call --tool-name emit_json --tool-arg 'yaml=a: 1
+   a: 2'
+   ```
+
+   Run these any time server registration, capabilities, tool surface, or resource surface change — the in-memory tests do not exercise stdio framing or real client↔server process bootstrap.
+
+## Convention: use the dev server for this project's MCP work
+
+When the user refers to "the MCP server" in this project — invoking it, testing a tool, reading a resource — use the **`json-emitter-dev`** instance registered by `.mcp.json`, not any separately-installed `json-emitter` server. Tool calls are namespaced as `mcp__json-emitter-dev__<tool>`; resource URIs are the same, accessed through the `json-emitter-dev` server.
+
 ## Libraries
 
 - `@modelcontextprotocol/sdk` — MCP server
