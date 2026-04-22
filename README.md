@@ -42,7 +42,7 @@ From npm (once published):
   "mcpServers": {
     "json-emitter": {
       "command": "npx",
-      "args": ["-y", "json-emitter"]
+      "args": ["-y", "@nerdo/json-emitter-mcp"]
     }
   }
 }
