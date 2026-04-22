@@ -1,12 +1,12 @@
 # json-emitter
 
-An MCP server with one tool: `emit_json(yaml, jsonSchema?)`. It converts a YAML 1.2 payload to JSON, optionally validating against a JSON Schema, and returns a tagged result an LLM can use to self-correct.
+An MCP server with one tool: `emit_json(yaml, jsonSchema?, options?)`. It converts a YAML 1.2 payload to JSON, optionally validating against a JSON Schema. **On success, the tool's text response IS the JSON** — callers relay it verbatim. On failure, `isError` is set and the text names the phase and location.
 
 ## Why
 
 LLMs emitting JSON directly frequently drop escape-within-prose-strings at length — a stray `"` inside a long `"text"` value silently breaks the whole document (e.g. `SyntaxError at position 12021`). YAML block scalars (`|`, `>`) eliminate the context switch: inside `|`, quotes/colons/pipes/asterisks are just prose.
 
-This server gives callers a safer emission surface, plus immediate pass/fail feedback when a schema is provided.
+Returning the JSON directly (rather than wrapping it in a `{ok, json}` envelope) avoids a second failure mode: LLMs unwrapping and re-stringifying the inner JSON themselves. Every byte-touching step between tool output and handoff should be deterministic.
 
 ## Install & run
 
@@ -48,18 +48,54 @@ bun src/main.ts --transport=http --port=3000
 
 ## The tool
 
-`emit_json({ yaml: string, jsonSchema?: object })` returns `{ content: [...], isError: boolean }`. The first text block is a JSON-encoded `EmitResult`:
+```
+emit_json({
+  yaml: string,
+  jsonSchema?: object,
+  options?: { pretty?: boolean }
+})
+```
 
-- Success: `{ ok: true, json: "<stringified JSON>" }`
-- Parse failure: `{ ok: false, phase: "parse", line, column, offset, message, snippet }`
-- Bad user-supplied schema: `{ ok: false, phase: "schema_compile", message }`
-- Schema validation failure: `{ ok: false, phase: "validate", errors: [{ instancePath, schemaPath, keyword, message, params }, …] }`
+### Success
 
-`isError` is `true` whenever `ok` is `false`.
+`isError` is absent/false. `content[0].text` is the JSON — literally, with no envelope:
+
+```
+{"text":"TI-13196 has been \"explore\" status...","count":3}
+```
+
+Default output is compact. Pass `options: {pretty: true}` for 2-space indentation.
+
+### Failure
+
+`isError` is `true`. `content[0].text` is a formatted message naming the phase and location.
+
+Parse failure (malformed YAML):
+
+```
+YAML parse error at line 1, column 19 (offset 18):
+Missing closing "quote at line 1, column 19:
+
+   1 | foo: "unterminated
+   1 |                   ^
+```
+
+Schema-compile failure (the user-supplied `jsonSchema` itself is invalid):
+
+```
+JSON Schema is invalid and could not be compiled: schema is invalid: data/type must be equal to one of the allowed values
+```
+
+Validation failure (YAML parses, but the data doesn't match the schema):
+
+```
+JSON Schema validation failed with 1 issue(s):
+  /text: must NOT have more than 3000 characters  (keyword: maxLength, params: {"limit":3000})
+```
 
 ## Example
 
-Input:
+Input YAML:
 
 ```yaml
 text: |
@@ -68,7 +104,7 @@ text: |
 count: 3
 ```
 
-JSON Schema (optional):
+Optional JSON Schema:
 
 ```json
 {
@@ -81,27 +117,13 @@ JSON Schema (optional):
 }
 ```
 
-Result:
+Tool response content (success):
 
-```json
-{"ok":true,"json":"{\"text\":\"TI-13196 has been \\\"explore\\\" status for a full sprint — Monday worth a check-in.\\nCommits like \\\"fix: thing\\\" and times like 10:30am pass through intact.\\n\",\"count\":3}"}
+```
+{"text":"TI-13196 has been \"explore\" status for a full sprint — Monday worth a check-in.\nCommits like \"fix: thing\" and times like 10:30am pass through intact.\n","count":3}
 ```
 
-If the text were >3000 characters, you'd get:
-
-```json
-{
-  "ok": false,
-  "phase": "validate",
-  "errors": [{
-    "instancePath": "/text",
-    "schemaPath": "#/properties/text/maxLength",
-    "keyword": "maxLength",
-    "message": "must NOT have more than 3000 characters",
-    "params": { "limit": 3000 }
-  }]
-}
-```
+That text IS the answer. Callers copy those bytes through to the destination — no JSON.parse + JSON.stringify round-trip, no manual unwrapping.
 
 ## Authoring YAML for this tool
 
@@ -133,6 +155,7 @@ Run the Inspector against a local copy:
 bunx @modelcontextprotocol/inspector bun src/main.ts
 # or CLI mode:
 bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method tools/list
+bunx @modelcontextprotocol/inspector --cli bun src/main.ts --method tools/call --tool-name emit_json --tool-arg yaml='foo: bar'
 ```
 
 ## License

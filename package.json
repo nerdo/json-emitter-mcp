@@ -1,6 +1,6 @@
 {
   "name": "json-emitter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that converts YAML to validated JSON — a safer emission surface for LLMs generating structured JSON payloads.",
   "type": "module",
   "private": true,
